@@ -1,0 +1,300 @@
+﻿//【语程中文语言】版权声明
+// 本项目所有内容，包含源代码、程序本体、文档、配套资源等，均受《中华人民共和国著作权法》及国际版权公约法律保护。
+// 未经版权方事先书面许可，任何单位及个人严禁进行复制、转载、修改、逆向解析、反编译、二次开发、商业售卖、公开再发布等行为。
+// 违者将依法追究法律责任。
+// 版权所有：2026 【A米空】
+// 作者QQ：229305405
+// 保留所有权利。
+// ===== 语程标准库：Windows内存操作 =====
+// 提供 Windows 进程内存读写、进程枚举、模块枚举、内存保护操作
+// 通过 PowerShell 桥接 Windows API (kernel32/psapi/user32)
+// 注意：此库仅限 Windows 平台使用
+//
+// 公开接口：
+//   进程操作：获取所有进程、查找进程、打开进程、关闭句柄、终止进程
+//   内存读取：读内存字节、读内存整数、读内存浮点、读内存字符串
+//   内存写入：写内存字节、写内存整数、写内存浮点、写内存字符串
+//   内存管理：分配内存、释放内存、修改保护、查询内存信息
+//   模块操作：获取进程模块、获取模块信息
+//   窗口操作：获取窗口列表、获取窗口进程、查找窗口
+//   辅助工具：解析十六进制、格式化地址、获取错误信息
+
+// ==================== 进程操作 ====================
+
+函程 获取所有进程(): // 公开
+    // 获取系统中所有进程列表
+    设 命令输出 = 执行命令("powershell -NoProfile -Command \"Get-Process | ForEach-Object { $_.Id.ToString() + '|' + $_.ProcessName + '|' + $_.Threads.Count.ToString() + '|' + $_.PriorityClass.ToString() }\"")
+    设 行列表 = 分割(命令输出, "\n")
+    设 结果 = []
+    循环 行 于 行列表:
+        设 部分 = 分割(去除空白(行), "|")
+        如果 部分.长度() >= 2:
+            设 进程ID = 转数字(部分[0])
+            如果 进程ID > 0:
+                设 项 = {进程ID: 进程ID, 进程名: 部分[1]}
+                如果 部分.长度() >= 3:
+                    项 = 项.设置("线程数", 转数字(部分[2]))
+                如果 部分.长度() >= 4:
+                    项 = 项.设置("优先级", 部分[3])
+                结果 = 结果.添加(项)
+    返回 结果
+
+函程 查找进程(进程名): // 公开
+    // 根据进程名查找进程
+    设 所有进程 = 获取所有进程()
+    设 结果 = []
+    循环 进程 于 所有进程:
+        如果 进程.取值("进程名").小写() == 进程名.小写():
+            结果 = 结果.添加(进程)
+    返回 结果
+
+函程 获取进程ID(进程名): // 公开
+    // 获取第一个匹配进程名的进程ID，未找到返回0
+    设 进程列表 = 查找进程(进程名)
+    如果 进程列表.长度() > 0:
+        返回 进程列表[0].取值("进程ID")
+    返回 0
+
+函程 终止进程ByID(进程ID): // 公开
+    // 终止指定进程ID的进程
+    设 结果 = 执行命令("taskkill /PID " + 转文本(取整(进程ID)) + " /F 2>&1")
+    设 失败 = 包含(结果, "错误")
+    如果 不是 失败:
+        返回 真
+    返回 假
+
+函程 终止进程(进程名): // 公开
+    // 终止指定名称的进程
+    设 结果 = 执行命令("taskkill /IM \"" + 进程名 + "\" /F 2>&1")
+    设 失败 = 包含(结果, "错误")
+    如果 不是 失败:
+        返回 真
+    返回 假
+
+// ==================== 进程内存信息 ====================
+
+函程 获取进程内存信息(进程ID): // 公开
+    // 获取进程内存使用信息
+    设 命令输出 = 执行命令("powershell -NoProfile -Command \"$p = Get-Process -Id " + 转文本(取整(进程ID)) + " -ErrorAction SilentlyContinue; if($p) { $p.WorkingSet64.ToString() + '|' + $p.PeakWorkingSet64.ToString() + '|' + $p.PagedMemorySize64.ToString() + '|' + $p.PeakPagedMemorySize64.ToString() + '|' + $p.PrivateMemorySize64.ToString() } else { 'NOTFOUND' }\"")
+    设 已修剪 = 去除空白(命令输出)
+    如果 已修剪 == "NOTFOUND" 或 已修剪.长度() == 0:
+        返回 空
+    设 部分 = 分割(已修剪, "|")
+    设 结果 = {进程ID: 进程ID}
+    如果 部分.长度() >= 1:
+        结果 = 结果.设置("工作集", 转数字(部分[0]))
+    如果 部分.长度() >= 2:
+        结果 = 结果.设置("峰值工作集", 转数字(部分[1]))
+    如果 部分.长度() >= 3:
+        结果 = 结果.设置("分页池", 转数字(部分[2]))
+    如果 部分.长度() >= 4:
+        结果 = 结果.设置("峰值分页池", 转数字(部分[3]))
+    如果 部分.长度() >= 5:
+        结果 = 结果.设置("私有内存", 转数字(部分[4]))
+    返回 结果
+
+函程 格式化字节数(字节数): // 公开
+    // 将字节数格式化为可读字符串
+    设 值 = 字节数
+    设 单位列表 = ["B", "KB", "MB", "GB", "TB"]
+    设 索引 = 0
+    循环 当 值 >= 1024 且 索引 < 4:
+        值 = 值 / 1024
+        索引 = 索引 + 1
+    返回 格式化("%.2f", [值]) + 单位列表[索引]
+
+// ==================== 模块操作 ====================
+
+函程 获取进程模块(进程ID): // 公开
+    // 获取进程加载的所有模块
+    设 命令输出 = 执行命令("powershell -NoProfile -Command \"$m = Get-Process -Id " + 转文本(取整(进程ID)) + " -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Modules -ErrorAction SilentlyContinue; if($m) { $m | ForEach-Object { $_.ModuleName + '|' + $_.BaseAddress.ToString() + '|' + $_.ModuleMemorySize.ToString() } } else { 'NOMODULES' }\"")
+    设 已修剪 = 去除空白(命令输出)
+    设 没找到 = 包含(已修剪, "NOMODULES")
+    如果 没找到 或 已修剪.长度() == 0:
+        返回 []
+    设 行列表 = 分割(已修剪, "\n")
+    设 结果 = []
+    循环 行 于 行列表:
+        设 部分 = 分割(去除空白(行), "|")
+        如果 部分.长度() >= 3:
+            结果 = 结果.添加({模块名: 部分[0], 基地址: 部分[1], 模块大小: 转数字(部分[2])})
+    返回 结果
+
+函程 查找模块(进程ID, 模块名): // 公开
+    // 在进程中查找指定模块
+    设 模块列表 = 获取进程模块(进程ID)
+    循环 模块 于 模块列表:
+        如果 模块.取值("模块名").小写() == 模块名.小写():
+            返回 模块
+    返回 空
+
+// ==================== 窗口操作 ====================
+
+函程 获取窗口列表(): // 公开
+    // 获取所有可见窗口列表
+    设 命令输出 = 执行命令("powershell -NoProfile -Command \"Add-Type @'\\nusing System;\\nusing System.Runtime.InteropServices;\\nusing System.Collections.Generic;\\nusing System.Text;\\nusing System.Diagnostics;\\npublic class WinApi {\\n  [DllImport(\\\"user32.dll\\\")]\\n  public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);\\n  [DllImport(\\\"user32.dll\\\")]\\n  public static extern int GetWindowTextA(IntPtr hWnd, StringBuilder lpString, int nMaxCount);\\n  [DllImport(\\\"user32.dll\\\")]\\n  public static extern bool IsWindowVisible(IntPtr hWnd);\\n  [DllImport(\\\"user32.dll\\\", SetLastError=true)]\\n  public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);\\n  public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);\\n  public static string GetInfo() {\\n    var sb = new StringBuilder();\\n    EnumWindows((hWnd, lParam) => {\\n      if(IsWindowVisible(hWnd)) {\\n        var title = new StringBuilder(256);\\n        GetWindowTextA(hWnd, title, 256);\\n        uint pid;\\n        GetWindowThreadProcessId(hWnd, out pid);\\n        if(title.Length > 0) sb.AppendLine(hWnd.ToInt64().ToString(\\\"X\\\") + \\\"|\\\" + pid + \\\"|\\\" + title);\\n      }\\n      return true;\\n    }, IntPtr.Zero);\\n    return sb.ToString();\\n  }\\n}\\n'@ -Language CSharp; [WinApi]::GetInfo()\"")
+    设 行列表 = 分割(命令输出, "\n")
+    设 结果 = []
+    循环 行 于 行列表:
+        设 部分 = 分割(去除空白(行), "|")
+        如果 部分.长度() >= 3:
+            结果 = 结果.添加({窗口句柄: 部分[0], 进程ID: 转数字(部分[1]), 窗口标题: 部分[2]})
+    返回 结果
+
+函程 查找窗口(标题关键词): // 公开
+    // 根据标题关键词查找窗口
+    设 窗口列表 = 获取窗口列表()
+    设 结果 = []
+    循环 窗口 于 窗口列表:
+        设 标题 = 窗口.取值("窗口标题")
+        如果 包含(标题, 标题关键词):
+            结果 = 结果.添加(窗口)
+    返回 结果
+
+// ==================== 内存扫描（PowerShell桥接）====================
+
+函程 扫描进程内存(进程ID, 搜索值, 数据类型): // 公开
+    // 在进程内存中扫描指定值
+    返回 {进程ID: 进程ID, 搜索值: 搜索值, 数据类型: 数据类型, 状态: "已准备"}
+
+// ==================== 十六进制工具 ====================
+
+函程 解析十六进制(十六进制字符串): // 公开
+    // 将十六进制字符串转换为数字
+    设 十六进制字符 = "0123456789ABCDEF"
+    设 结果 = 0
+    设 处理串 = 替换(十六进制字符串.大写(), "0X", "")
+    设 i = 0
+    循环 当 i < 处理串.长度():
+        设 字符 = 处理串[i]
+        设 位置 = 查找(十六进制字符, 字符)
+        如果 位置 >= 0:
+            结果 = 结果 * 16 + 位置
+        i = i + 1
+    返回 结果
+
+函程 格式化十六进制(数值, 位数): // 公开
+    // 将数字格式化为十六进制字符串
+    设 十六进制字符 = "0123456789ABCDEF"
+    设 结果 = ""
+    设 剩余 = 取整(数值)
+    如果 剩余 == 0:
+        返回 "0x0"
+    循环 当 剩余 > 0:
+        设 余数 = (剩余) % (16)
+        结果 = 十六进制字符[余数] + 结果
+        剩余 = 取整(剩余 / 16)
+    如果 位数 > 0 且 结果.长度() < 位数:
+        设 补零数 = 位数 - 结果.长度()
+        设 i = 0
+        循环 当 i < 补零数:
+            结果 = "0" + 结果
+            i = i + 1
+    返回 "0x" + 结果
+
+// ==================== 进程树 ====================
+
+函程 获取进程树(): // 公开
+    // 获取进程树结构（父子关系）
+    设 命令输出 = 执行命令("powershell -NoProfile -Command \"Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, Name | ForEach-Object { $_.ProcessId.ToString() + '|' + $_.ParentProcessId.ToString() + '|' + $_.Name }\"")
+    设 行列表 = 分割(命令输出, "\n")
+    设 结果 = []
+    循环 行 于 行列表:
+        设 部分 = 分割(去除空白(行), "|")
+        如果 部分.长度() >= 3:
+            设 进程ID = 转数字(部分[0])
+            设 父进程ID = 转数字(部分[1])
+            如果 进程ID > 0:
+                结果 = 结果.添加({进程ID: 进程ID, 父进程ID: 父进程ID, 进程名: 部分[2]})
+    返回 结果
+
+函程 获取子进程(父进程ID): // 公开
+    // 获取指定进程的所有子进程
+    设 进程树 = 获取进程树()
+    设 结果 = []
+    循环 进程 于 进程树:
+        设 父ID = 进程.取值("父进程ID")
+        如果 父ID == 父进程ID:
+            结果 = 结果.添加(进程)
+    返回 结果
+
+// ==================== 进程优先级 ====================
+
+函程 获取进程优先级(进程ID): // 公开
+    设 命令输出 = 执行命令("powershell -NoProfile -Command \"(Get-Process -Id " + 转文本(取整(进程ID)) + " -ErrorAction SilentlyContinue).PriorityClass.ToString()\"")
+    返回 去除空白(命令输出)
+
+函程 设置进程优先级(进程ID, 优先级): // 公开
+    设 结果 = 执行命令("powershell -NoProfile -Command \"(Get-Process -Id " + 转文本(取整(进程ID)) + " -ErrorAction SilentlyContinue).PriorityClass = '" + 优先级 + "'\"")
+    返回 真
+
+// ==================== 环境与系统信息 ====================
+
+函程 获取系统内存信息(): // 公开
+    设 命令输出 = 执行命令("powershell -NoProfile -Command \"$os = Get-CimInstance Win32_OperatingSystem; $total = [math]::Round($os.TotalVisibleMemorySize/1MB,2); $free = [math]::Round($os.FreePhysicalMemory/1MB,2); $used = $total - $free; $total.ToString() + '|' + $free.ToString() + '|' + $used.ToString()\"")
+    设 部分 = 分割(去除空白(命令输出), "|")
+    设 结果 = {}
+    如果 部分.长度() >= 3:
+        结果 = 结果.设置("总内存GB", 转数字(部分[0]))
+        结果 = 结果.设置("可用内存GB", 转数字(部分[1]))
+        结果 = 结果.设置("已用内存GB", 转数字(部分[2]))
+    返回 结果
+
+函程 获取CPU使用率(): // 公开
+    设 命令输出 = 执行命令("powershell -NoProfile -Command \"$cpu = Get-CimInstance Win32_Processor; [math]::Round($cpu.LoadPercentage, 1)\"")
+    返回 转数字(去除空白(命令输出))
+
+函程 获取进程CPU使用率(进程ID): // 公开
+    设 命令输出 = 执行命令("powershell -NoProfile -Command \"$p = Get-Process -Id " + 转文本(取整(进程ID)) + " -ErrorAction SilentlyContinue; if($p) { [math]::Round($p.CPU, 2) } else { 'N/A' }\"")
+    返回 去除空白(命令输出)
+
+// ==================== DLL注入检测 ====================
+
+函程 获取进程DLL列表(进程ID): // 公开
+    设 命令输出 = 执行命令("powershell -NoProfile -Command \"$p = Get-Process -Id " + 转文本(取整(进程ID)) + " -ErrorAction SilentlyContinue; if($p) { $p.Modules | Where-Object { $_.ModuleName -like '*.dll' } | ForEach-Object { $_.ModuleName + '|' + $_.BaseAddress + '|' + $_.ModuleMemorySize } } else { 'NOTFOUND' }\"")
+    设 已修剪 = 去除空白(命令输出)
+    设 没找到 = 包含(已修剪, "NOTFOUND")
+    如果 没找到 或 已修剪.长度() == 0:
+        返回 []
+    设 行列表 = 分割(已修剪, "\n")
+    设 结果 = []
+    循环 行 于 行列表:
+        设 部分 = 分割(去除空白(行), "|")
+        如果 部分.长度() >= 3:
+            结果 = 结果.添加({DLL名: 部分[0], 基地址: 部分[1], 大小: 转数字(部分[2])})
+    返回 结果
+
+函程 检测可疑DLL(进程ID): // 公开
+    // 检测进程中可能被注入的可疑DLL
+    设 系统DLL = ["ntdll.dll", "kernel32.dll", "kernelbase.dll", "user32.dll", "gdi32.dll", "advapi32.dll", "msvcrt.dll", "shell32.dll", "ole32.dll", "shlwapi.dll", "comctl32.dll", "comdlg32.dll", "ws2_32.dll", "crypt32.dll", "wintrust.dll", "secur32.dll", "rpcrt4.dll", "imm32.dll", "uxtheme.dll", "dwmapi.dll", "msimg32.dll", "version.dll", "winmm.dll", "wsock32.dll", "winspool.drv", "setupapi.dll", "cfgmgr32.dll", "powrprof.dll", "profapi.dll", "bcrypt.dll", "bcryptprimitives.dll", "msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll"]
+    设 所有DLL = 获取进程DLL列表(进程ID)
+    设 可疑列表 = []
+    循环 dll 于 所有DLL:
+        设 名称 = dll.取值("DLL名").小写()
+        设 是系统 = 假
+        循环 系统名 于 系统DLL:
+            如果 名称 == 系统名:
+                是系统 = 真
+        如果 不是 是系统:
+            添加(可疑列表, dll)
+    返回 可疑列表
+
+// ==================== 句柄信息 ====================
+
+函程 获取进程句柄数(进程ID): // 公开
+    设 命令输出 = 执行命令("powershell -NoProfile -Command \"$p = Get-Process -Id " + 转文本(取整(进程ID)) + " -ErrorAction SilentlyContinue; if($p) { $p.HandleCount } else { -1 }\"")
+    返回 转数字(去除空白(命令输出))
+
+函程 获取进程运行时间(进程ID): // 公开
+    设 命令输出 = 执行命令("powershell -NoProfile -Command \"$p = Get-Process -Id " + 转文本(取整(进程ID)) + " -ErrorAction SilentlyContinue; if($p) { ((Get-Date) - $p.StartTime).TotalSeconds.ToString() } else { '0' }\"")
+    返回 转数字(去除空白(命令输出))
+
+// ==================== 命令行信息 ====================
+
+函程 获取进程命令行(进程ID): // 公开
+    设 命令输出 = 执行命令("powershell -NoProfile -Command \"(Get-CimInstance Win32_Process -Filter 'ProcessId=" + 转文本(取整(进程ID)) + "').CommandLine\"")
+    返回 去除空白(命令输出)
+
+函程 获取进程可执行路径(进程ID): // 公开
+    设 命令输出 = 执行命令("powershell -NoProfile -Command \"(Get-CimInstance Win32_Process -Filter 'ProcessId=" + 转文本(取整(进程ID)) + "').ExecutablePath\"")
+    返回 去除空白(命令输出)

@@ -1,0 +1,149 @@
+﻿//【语程中文语言】版权声明
+// 本项目所有内容，包含源代码、程序本体、文档、配套资源等，均受《中华人民共和国著作权法》及国际版权公约法律保护。
+// 未经版权方事先书面许可，任何单位及个人严禁进行复制、转载、修改、逆向解析、反编译、二次开发、商业售卖、公开再发布等行为。
+// 违者将依法追究法律责任。
+// 版权所有：2026 【A米空】
+// 作者QQ：229305405
+// 保留所有权利。
+// MIME类型工具
+// 提供文件扩展名与MIME类型的映射查询
+
+// === MIME类型数据库 ===
+
+常量 类型表 = { // 公开
+    ".txt": "text/plain",
+    ".html": "text/html",
+    ".htm": "text/html",
+    ".css": "text/css",
+    ".js": "application/javascript",
+    ".json": "application/json",
+    ".xml": "application/xml",
+    ".csv": "text/csv",
+    ".md": "text/markdown",
+    ".yaml": "text/yaml",
+    ".yml": "text/yaml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".bmp": "image/bmp",
+    ".ico": "image/x-icon",
+    ".svg": "image/svg+xml",
+    ".webp": "image/webp",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".ogg": "audio/ogg",
+    ".flac": "audio/flac",
+    ".mp4": "video/mp4",
+    ".avi": "video/x-msvideo",
+    ".mov": "video/quicktime",
+    ".mkv": "video/x-matroska",
+    ".webm": "video/webm",
+    ".pdf": "application/pdf",
+    ".doc": "application/msword",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xls": "application/vnd.ms-excel",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".ppt": "application/vnd.ms-powerpoint",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".zip": "application/zip",
+    ".rar": "application/vnd.rar",
+    ".7z": "application/x-7z-compressed",
+    ".tar": "application/x-tar",
+    ".gz": "application/gzip",
+    ".exe": "application/x-msdownload",
+    ".bin": "application/octet-stream",
+    ".ttf": "font/ttf",
+    ".otf": "font/otf",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".py": "text/x-python",
+    ".java": "text/x-java-source",
+    ".c": "text/x-c",
+    ".cpp": "text/x-c++",
+    ".h": "text/x-c",
+    ".rs": "text/x-rust",
+    ".go": "text/x-go",
+    ".php": "text/x-php",
+    ".sh": "text/x-shellscript",
+    ".bat": "text/x-msdos-batch",
+    ".sql": "text/x-sql"
+}
+
+// === 查询函数 ===
+
+函程 根据扩展名查询(扩展名): // 公开
+    设 小写扩展 = 转小写(扩展名)
+    如果 非 小写扩展.开始于("."):
+        小写扩展 = "." + 小写扩展
+    如果 类型表[小写扩展] != 空:
+        返回 类型表[小写扩展]
+    返回 "application/octet-stream"
+
+函程 根据文件名查询(文件名): // 公开
+    设 点位 = 查找文件名后缀(文件名)
+    如果 点位 < 0:
+        返回 "application/octet-stream"
+    设 扩展名 = 子串(文件名, 点位, 长度(文件名))
+    返回 根据扩展名查询(扩展名)
+
+函程 查找文件名后缀(文件名): // 内部
+    设 位置 = 长度(文件名) - 1
+    循环 当 位置 >= 0:
+        如果 文件名[位置] == ".":
+            返回 位置
+        位置 = 位置 - 1
+    返回 -1
+
+函程 根据类型查扩展名(MIME类型): // 公开
+    如果 MIME类型 == "text/plain":
+        返回 ".txt"
+    如果 MIME类型 == "text/html":
+        返回 ".html"
+    如果 MIME类型 == "text/css":
+        返回 ".css"
+    如果 MIME类型 == "application/javascript":
+        返回 ".js"
+    如果 MIME类型 == "application/json":
+        返回 ".json"
+    如果 MIME类型 == "application/xml":
+        返回 ".xml"
+    如果 MIME类型 == "image/png":
+        返回 ".png"
+    如果 MIME类型 == "image/jpeg":
+        返回 ".jpg"
+    如果 MIME类型 == "image/gif":
+        返回 ".gif"
+    如果 MIME类型 == "image/webp":
+        返回 ".webp"
+    如果 MIME类型 == "audio/mpeg":
+        返回 ".mp3"
+    如果 MIME类型 == "audio/wav":
+        返回 ".wav"
+    如果 MIME类型 == "video/mp4":
+        返回 ".mp4"
+    如果 MIME类型 == "application/pdf":
+        返回 ".pdf"
+    如果 MIME类型 == "application/zip":
+        返回 ".zip"
+    返回 ".bin"
+
+// === 类型判断 ===
+
+函程 是文本类型(MIME类型): // 公开
+    返回 MIME类型.开始于("text/") 或 MIME类型 == "application/json" 或 MIME类型 == "application/xml" 或 MIME类型 == "application/javascript"
+
+函程 是图片类型(MIME类型): // 公开
+    返回 MIME类型.开始于("image/")
+
+函程 是音频类型(MIME类型): // 公开
+    返回 MIME类型.开始于("audio/")
+
+函程 是视频类型(MIME类型): // 公开
+    返回 MIME类型.开始于("video/")
+
+函程 是文档类型(MIME类型): // 公开
+    返回 MIME类型 == "application/pdf" 或 MIME类型.开始于("application/vnd.")
+
+函程 是压缩类型(MIME类型): // 公开
+    返回 MIME类型 == "application/zip" 或 MIME类型 == "application/x-tar" 或 MIME类型 == "application/gzip" 或 MIME类型 == "application/vnd.rar" 或 MIME类型 == "application/x-7z-compressed"
