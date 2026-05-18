@@ -1,0 +1,46 @@
+// Cookie库示例
+// 演示Cookie解析与生成功能
+
+导入 "库/Cookie"
+
+输出 "=== Cookie库示例 ==="
+输出 ""
+
+// 解析Cookie字符串
+输出 "--- 解析Cookie字符串 ---"
+设 Cookie字符串 = "name=张三; age=25; city=北京"
+输出 "原始Cookie: " + Cookie字符串
+
+设 解析结果 = 解析Cookie字符串(Cookie字符串)
+输出 "解析结果: " + 转字符串(解析结果)
+输出 ""
+
+// 解析Cookie头部
+输出 "--- 解析Cookie头部 ---"
+设 头部文本 = "session=abc123; token=xyz789"
+设 Cookie字典 = 解析Cookie头部(头部文本)
+输出 "Cookie字典: " + 转字符串(Cookie字典)
+输出 ""
+
+// 生成Set-Cookie头部
+输出 "--- 生成Set-Cookie ---"
+设 名 = "用户名"
+设 值 = "李四"
+设 选项 = {
+    路径: "/",
+    域名: "example.com",
+    安全: 真,
+    仅HTTP: 真
+}
+设 SetCookie头部 = 生成SetCookie(名, 值, 选项)
+输出 "Set-Cookie: " + SetCookie头部
+输出 ""
+
+// 生成简单Cookie
+输出 "--- 生成简单Cookie ---"
+设 简单Cookie = 生成SetCookie("主题", "暗色")
+输出 "简单Set-Cookie: " + 简单Cookie
+输出 ""
+
+输出 "=== 示例完成 ==="
+输出 ""

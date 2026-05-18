@@ -1,0 +1,30 @@
+// SSL工具示例 - HTTPS安全连接与TLS配置
+导入 "库/SSL工具.程"
+
+// 示例1: URL安全检查
+输出 "是HTTPS: " + 转字符串(是HTTPS("https://example.com"))
+输出 "是HTTP: " + 转字符串(是HTTP("http://example.com"))
+输出 "升级HTTPS: " + 升级HTTPS("http://example.com")
+
+// 示例2: 强制HTTPS
+输出 "强制HTTPS: " + 强制HTTPS("http://test.com")
+输出 "已HTTPS: " + 强制HTTPS("https://test.com")
+
+// 示例3: 安全配置
+设 现代 = 安全配置("现代")
+输出 "现代最低版本: " + 现代.最低版本
+设 中级 = 安全配置("中级")
+输出 "中级最低版本: " + 中级.最低版本
+设 旧版 = 安全配置("旧版")
+输出 "旧版最低版本: " + 旧版.最低版本
+
+// 示例4: 安全请求构建器
+设 请求 = 创建安全请求("https://api.example.com")
+请求 = 设置方法(请求, "POST")
+请求 = 设置数据(请求, "{\"key\":\"value\"}")
+请求 = 设置头部(请求, "Content-Type", "application/json")
+输出 "请求方法: " + 请求.方法
+输出 "请求数据: " + 请求.数据
+输出 ""
+输出 "=== 示例完成 ==="
+输出 ""
